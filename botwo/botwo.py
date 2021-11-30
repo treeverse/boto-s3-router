@@ -1,6 +1,6 @@
 import fnmatch
 
-SPECIAL_METHODS = {"get_paginator"}
+SPECIAL_METHODS = {"get_paginator", "delete_objects"}
 COPY_METHODS = {"copy", "copy_object", "copy_upload_part"}
 
 
@@ -101,7 +101,7 @@ class Botwo(object):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
             client_to_call = self.default_client
-            if kwargs["Bucket"]:  # bucket operation
+            if kwargs.get("Bucket"):  # bucket operation
                 full_path = kwargs["Bucket"] + "/" + kwargs["Key"]
                 res = self._route_params(full_path, kwargs, is_copy=False)
                 client_to_call = res[0]
@@ -118,12 +118,12 @@ class Botwo(object):
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
             client_to_call_source = self.default_client
             client_to_call_dest = self.default_client
-            if kwargs["CopySource"]:  # copy operation
+            if kwargs.get("CopySource"):  # copy operation
                 res = self._route_params(kwargs["CopySource"], kwargs, is_copy=True)
                 client_to_call_source = res[0]
                 api_params = res[1]
 
-            if api_params["Bucket"]:
+            if api_params.get("Bucket"):
                 full_dest_path = api_params["Bucket"] + "/" + api_params["Key"]
                 res = self._route_params(full_dest_path, api_params, is_copy=False)
                 client_to_call_dest = res[0]
@@ -138,13 +138,23 @@ class Botwo(object):
         return _api_call
 
     def _create_special_method(self, operation_name):
-        def _api_call(*args, **kwargs):
+        def _paginator_api_call(*args, **kwargs):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
             return Paginatwo(self.mapping, kwargs, self.client1, self.client2, self.client1_name, self.client2_name)
 
-        _api_call.__name__ = str(operation_name)
-        return _api_call
+        def _delete_objects_api_call(*args, **kwargs):
+            if args:
+                raise TypeError("%s() only accepts keyword arguments." % operation_name)
+            # TODO
+            return None
+
+        if operation_name == "get_paginator":
+            _paginator_api_call.__name__ = str(operation_name)
+            return _paginator_api_call
+        if operation_name == "delete_objects":
+            _delete_objects_api_call.__name__ = str(operation_name)
+            return _delete_objects_api_call
 
     def _route_params(self, path, api_params, is_copy):
         client_to_call = self.default_client
