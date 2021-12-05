@@ -5,7 +5,7 @@ COPY_METHODS = {"copy", "copy_object", "copy_upload_part"}
 LIST_METHODS = {"list_objects", "list_objects_v2", "list_object_version"}
 
 
-class Paginatwo(object):
+class PaginatorWrapper(object):
     """ This class wraps boto paginator """
 
     def __init__(self, mapping, config, kwargs):
@@ -152,7 +152,7 @@ class BotwoBuilder(object):
 
     def _create_get_paginate_method(self, operation_name):
         def _paginator_api_call(*args, **kwargs):
-            return Paginatwo(self.mapping, self.config, kwargs)
+            return PaginatorWrapper(self.mapping, self.config, kwargs)
 
         _paginator_api_call.__name__ = str(operation_name)
         return _paginator_api_call
