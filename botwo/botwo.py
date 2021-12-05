@@ -47,7 +47,6 @@ class BotwoBuilder(object):
         self.default = None
         self.mapping = None
         self.config = None
-        self.meta = None
 
     def create_client_class(self, mapping, config):
         if not isinstance(mapping, dict):
@@ -58,7 +57,6 @@ class BotwoBuilder(object):
         self.mapping = mapping
         self.config = config
         self.default = mapping.get("default")
-        self.meta = self.default.meta
 
         for k, v in self.mapping.items():
             if not isinstance(v, botocore.client.BaseClient):
@@ -69,13 +67,7 @@ class BotwoBuilder(object):
                 raise ValueError("profile: " + profile + " mapping is required")
 
         class_attributes = self._create_methods()
-
-        # cls = type("s3", tuple([self.default.__class__]), class_attributes)
-        # cls.__init__ = lambda a: None
-        # return cls()
-        bases = [BotwoBuilder]
         cls = type("s3", (), class_attributes)
-        # cls = type("s3", (), class_attributes)
         return cls()
 
     def _create_methods(self):
@@ -95,6 +87,7 @@ class BotwoBuilder(object):
                 op_dict[operation_name] = self._create_copy_method(operation_name)
             else:
                 op_dict[operation_name] = self._create_api_method(operation_name)
+        op_dict["meta"] = self.default.meta
         return op_dict
 
     def _create_api_method(self, operation_name):
@@ -105,9 +98,9 @@ class BotwoBuilder(object):
             if kwargs.get("Bucket"):  # bucket operation
                 res = self._route_params(kwargs)
                 client_to_call = res[0]
-                api_params = res[1]
+                kwargs = res[1]
 
-            return getattr(client_to_call, operation_name)(**api_params)
+            return getattr(client_to_call, operation_name)(**kwargs)
 
         _api_call.__name__ = str(operation_name)
         return _api_call
@@ -182,7 +175,7 @@ class BotwoBuilder(object):
                     client_to_call = res[0]
                     bucket = res[1]["Bucket"]
                     kwargs["Delete"]["Objects"][i]["Key"] = res[1]["Key"]
-                    # if client to call not equal to previous
+                    # TODO (eden) fail if client to call not equal to previous
             kwargs["Bucket"] = bucket
             return getattr(client_to_call, operation_name)(**kwargs)
 

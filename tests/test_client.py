@@ -169,16 +169,18 @@ class Test(unittest.TestCase):
 
         self.assertEqual(len(objects['Contents']), 2)
 
-    # def test_meta(self):
-    #     self.minio2.create_bucket(Bucket="test-meta")
-    #     # event_system = self.botwo_client.meta.events
-    #     event_system = self.botwo_client.meta
-    #     print("nkakfmla")
-    #     # def add_my_bucket(params, **kwargs):
-    #     #     params['Bucket'] = 'test-meta'
-    #     #
-    #     # event_system.register('provide-client-params.s3.*', add_my_bucket)
-    #     # self.botwo_client.get_bucket_acl(Bucket="hello")
+    def test_meta(self):
+        self.assertEqual(self.botwo_client.meta, self.minio2.meta)
+
+        self.minio2.create_bucket(Bucket="test-meta")
+        event_system = self.botwo_client.meta.events
+
+        def add_my_bucket(params, **kwargs):
+            if 'Bucket' not in params:
+                params['Bucket'] = 'test-meta'
+
+        event_system.register('provide-client-params.s3.GetBucketAcl', add_my_bucket)
+        self.botwo_client.get_bucket_acl()
 
     @classmethod
     def tearDownClass(cls):
