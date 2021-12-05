@@ -48,7 +48,7 @@ class BotwoBuilder(object):
         self.mapping = None
         self.config = None
 
-    def create_client_class(self, mapping, config):
+    def build(self, mapping, config):
         if not isinstance(mapping, dict):
             raise TypeError("Invalid client mapping type: " + str(type(mapping)) + " expected dict")
 

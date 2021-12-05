@@ -7,8 +7,8 @@ def client(client_mapping, profiles):
 
     """
     botwo = BotwoBuilder()
-    return botwo.create_client_class(client_mapping, profiles)
+    return botwo.build(client_mapping, profiles)
 
 
 # def resource(*args, **kwargs):
-    # TODO (issue )
+    # TODO (issue 3)
