@@ -1,95 +1,96 @@
 import fnmatch
+import botocore
 
-SPECIAL_METHODS = {"get_paginator", "delete_objects"}
 COPY_METHODS = {"copy", "copy_object", "copy_upload_part"}
-
-
-def client(client_mapping, config):
-    botwo = Botwo()
-    return botwo.create_client_class(client_mapping, config)
+LIST_METHODS = {"list_objects", "list_objects_v2", "list_object_version"}
 
 
 class Paginatwo(object):
+    """ This class wraps boto paginator """
 
-    def __init__(self, mapping, kwargs, client1, client2, client1_name, client2_name):
+    def __init__(self, mapping, config, kwargs):
         self.mapping = mapping
-        self.client1_name = client1_name
-        self.client2_name = client2_name
-        self.paginator1 = client1.get_paginator(kwargs["operation_name"])
-        self.paginator2 = client2.get_paginator(kwargs["operation_name"])
+        self.config = config
+        self.paginators = dict()
+        for client in self.mapping:
+            self.paginators[client] = self.mapping[client].get_paginator(kwargs["operation_name"])
+        self.default = self.paginators.get("default")
 
     def paginate(self, **kwargs):
-        paginator_to_call = self.paginator1
-        for map in self.mapping:
-            if fnmatch.fnmatch(kwargs["Bucket"], map["bucket_name"]):
-                if map.get("client"):
-                    if map.get("client") == self.client2_name:
-                        paginator_to_call = self.paginator2
-                    elif map.get("client") == self.client1_name:
-                        paginator_to_call = self.paginator1
-                    else:
-                        raise ValueError("Invalid client name " + map.get("client"))
-                else:
-                    raise ValueError("client isn't provided")
+        for profile in self.config:
+            mapping = self.config[profile]
 
-                if map.get("mapped_bucket_name"):
-                    kwargs["Bucket"] = map.get("mapped_bucket_name")
-                if kwargs.get("Prefix"):
-                    if map.get("key_prefix"):
-                        kwargs["Prefix"] = map.get("keu_prefix") + kwargs["Prefix"]
-                break
-        return getattr(paginator_to_call, "paginate")(**kwargs)
+            if fnmatch.fnmatch(kwargs["Bucket"], mapping.get("source_bucket_pattern")):
+                if kwargs["Prefix"]:
+                    if mapping.get("source_key_pattern"):
+                        if not fnmatch.fnmatch(kwargs["Prefix"], mapping.get("source_key_pattern")):
+                            continue
+                    if mapping.get("mapped_prefix"):
+                        kwargs["Prefix"] = mapping.get("mapped_prefix") + kwargs["Prefix"]
+                if mapping.get("mapped_bucket_name"):
+                    kwargs["Bucket"] = mapping.get("mapped_bucket_name")
+
+                return getattr(self.paginators.get(profile), "paginate")(**kwargs)
+        return getattr(self.default, "paginate")(**kwargs)
 
 
-class Botwo(object):
+class BotwoBuilder(object):
+    """ This class creates botwo client that wraps boto client:
+
+        * Holds boto clients and routes the requests between them by bucket/prefix configuration.
+        * Create its methods on the fly according to boto3 client AWS methods.
+        * Holds special treatment for functions that operate on multiple buckets or keys
+
+    """
+
     def __init__(self):
-        self.client1 = None
-        self.client2 = None
-        self.default_client = None
-        self.client1_name = None
-        self.client2_name = None
+        self.default = None
         self.mapping = None
+        self.config = None
         self.meta = None
 
-    def create_client_class(self, client_mapping, config):
-        if type(client_mapping) is not dict:
-            raise TypeError("Invalid client mapping type: " + str(type(client_mapping)) + " expected dict")
-        if len(client_mapping) != 2:
-            raise TypeError("two clients is expected")
+    def create_client_class(self, mapping, config):
+        if not isinstance(mapping, dict):
+            raise TypeError("Invalid client mapping type: " + str(type(mapping)) + " expected dict")
 
-        names = list(client_mapping)
-        self.client1_name = names[0]
-        self.client1 = client_mapping.get(names[0])
-        self.client2_name = names[1]
-        self.client2 = client_mapping.get(names[1])
+        if not mapping.get("default"):
+            raise ValueError("default client is required")
+        self.mapping = mapping
+        self.config = config
+        self.default = mapping.get("default")
+        self.meta = self.default.meta
 
-        self.mapping = self._parse_config(config)
+        for k, v in self.mapping.items():
+            if not isinstance(v, botocore.client.BaseClient):
+                raise TypeError("mapping: " + k + "Invalid client type: " + str(type(v)) + " expected boto.s3.client")
+
+        for profile in self.config:
+            if not self.mapping.get(profile):
+                raise ValueError("profile: " + profile + " mapping is required")
+
         class_attributes = self._create_methods()
 
-        bases = [Botwo]
-        cls = type("s3", tuple(bases), class_attributes)
-        return cls
-
-    def _parse_config(self, config):
-        if len(config) == 0:
-            raise ValueError("default client is not provided")
-        if config[-1].get("bucket_name") == "*":
-            if config[-1].get("client") == self.client1_name:
-                self.default_client = self.client1
-            elif config[-1].get("client") == self.client2_name:
-                self.default_client = self.client2
-        else:
-            raise ValueError("default client is not provided")
-        self.meta = self.default_client.meta
-        return config
+        # cls = type("s3", tuple([self.default.__class__]), class_attributes)
+        # cls.__init__ = lambda a: None
+        # return cls()
+        bases = [BotwoBuilder]
+        cls = type("s3", (), class_attributes)
+        # cls = type("s3", (), class_attributes)
+        return cls()
 
     def _create_methods(self):
         op_dict = {}
-        operations = [func for func in dir(self.default_client) if
-                      (callable(getattr(self.default_client, func)) and not func.startswith('_'))]
+        operations = [func for func in dir(self.default) if
+                      (callable(getattr(self.default, func)) and not func.startswith('_'))]
         for operation_name in operations:
-            if operation_name in SPECIAL_METHODS:
-                op_dict[operation_name] = self._create_special_method(operation_name)
+            if operation_name == "get_paginator":
+                op_dict[operation_name] = self._create_get_paginate_method(operation_name)
+            elif operation_name == "can_paginate":
+                op_dict[operation_name] = self._create_can_paginate_method(operation_name)
+            elif operation_name == "delete_objects":
+                op_dict[operation_name] = self._create_delete_objects_method(operation_name)
+            elif operation_name in LIST_METHODS:
+                op_dict[operation_name] = self._create_list_method(operation_name)
             elif operation_name in COPY_METHODS:
                 op_dict[operation_name] = self._create_copy_method(operation_name)
             else:
@@ -97,13 +98,12 @@ class Botwo(object):
         return op_dict
 
     def _create_api_method(self, operation_name):
-        def _api_call(*args, **kwargs):
+        def _api_call(_, *args, **kwargs):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
-            client_to_call = self.default_client
+            client_to_call = self.default
             if kwargs.get("Bucket"):  # bucket operation
-                full_path = kwargs["Bucket"] + "/" + kwargs["Key"]
-                res = self._route_params(full_path, kwargs, is_copy=False)
+                res = self._route_params(kwargs)
                 client_to_call = res[0]
                 api_params = res[1]
 
@@ -112,20 +112,40 @@ class Botwo(object):
         _api_call.__name__ = str(operation_name)
         return _api_call
 
-    def _create_copy_method(self, operation_name):
-        def _api_call(*args, **kwargs):
+    def _create_list_method(self, operation_name):
+        def _api_call(_, *args, **kwargs):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
-            client_to_call_source = self.default_client
-            client_to_call_dest = self.default_client
-            if kwargs.get("CopySource"):  # copy operation
-                res = self._route_params(kwargs["CopySource"], kwargs, is_copy=True)
-                client_to_call_source = res[0]
-                api_params = res[1]
+            client_to_call = self.default
+            if kwargs.get("Bucket") and not kwargs.get("Prefix"):
+                res = self._route_params(kwargs)
+                client_to_call = res[0]
+            elif kwargs.get("Bucket") and kwargs.get("Prefix"):
+                res = self._route_params({"Bucket": kwargs.get("Bucket"), "Key": kwargs.get("Prefix")})
+                client_to_call = res[0]
+                kwargs["Prefix"] = res[1]["Key"]
+            kwargs["Bucket"] = res[1]["Bucket"]
 
-            if api_params.get("Bucket"):
-                full_dest_path = api_params["Bucket"] + "/" + api_params["Key"]
-                res = self._route_params(full_dest_path, api_params, is_copy=False)
+            return getattr(client_to_call, operation_name)(**kwargs)
+
+        _api_call.__name__ = str(operation_name)
+        return _api_call
+
+    def _create_copy_method(self, operation_name):
+        def _api_call(_, *args, **kwargs):
+            if args:
+                raise TypeError("%s() only accepts keyword arguments." % operation_name)
+            client_to_call_source = self.default
+            client_to_call_dest = self.default
+            if kwargs.get("CopySource"):  # copy operation
+                if isinstance(kwargs["CopySource"], str):
+                    raise TypeError("accepts only type dict as CopySource")
+                res = self._route_params(kwargs["CopySource"])
+                client_to_call_source = res[0]
+                kwargs["CopySource"] = res[1]
+
+            if kwargs.get("Bucket"):
+                res = self._route_params(kwargs)
                 client_to_call_dest = res[0]
                 api_params = res[1]
 
@@ -137,52 +157,51 @@ class Botwo(object):
         _api_call.__name__ = str(operation_name)
         return _api_call
 
-    def _create_special_method(self, operation_name):
+    def _create_get_paginate_method(self, operation_name):
         def _paginator_api_call(*args, **kwargs):
+            return Paginatwo(self.mapping, self.config, kwargs)
+
+        _paginator_api_call.__name__ = str(operation_name)
+        return _paginator_api_call
+
+    def _create_can_paginate_method(self, operation_name):
+        def _can_paginate_api_call(*args, **kwargs):
+            return getattr(self.default, operation_name)(**kwargs)
+
+        _can_paginate_api_call.__name__ = str(operation_name)
+        return _can_paginate_api_call
+
+    def _create_delete_objects_method(self, operation_name):
+        def _delete_objects_api_call(_, *args, **kwargs):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
-            return Paginatwo(self.mapping, kwargs, self.client1, self.client2, self.client1_name, self.client2_name)
+            if kwargs.get("Delete"):  # delete objects operation
+                for i, obj in enumerate(kwargs["Delete"]["Objects"]):
+                    params = {"Bucket": kwargs.get("Bucket"), "Key": obj["Key"]}
+                    res = self._route_params(params)
+                    client_to_call = res[0]
+                    bucket = res[1]["Bucket"]
+                    kwargs["Delete"]["Objects"][i]["Key"] = res[1]["Key"]
+                    # if client to call not equal to previous
+            kwargs["Bucket"] = bucket
+            return getattr(client_to_call, operation_name)(**kwargs)
 
-        def _delete_objects_api_call(*args, **kwargs):
-            if args:
-                raise TypeError("%s() only accepts keyword arguments." % operation_name)
-            # TODO
-            return None
+        _delete_objects_api_call.__name__ = str(operation_name)
+        return _delete_objects_api_call
 
-        if operation_name == "get_paginator":
-            _paginator_api_call.__name__ = str(operation_name)
-            return _paginator_api_call
-        if operation_name == "delete_objects":
-            _delete_objects_api_call.__name__ = str(operation_name)
-            return _delete_objects_api_call
+    def _route_params(self, api_params):
+        for profile in self.config:
+            mapping = self.config[profile]
 
-    def _route_params(self, path, api_params, is_copy):
-        client_to_call = self.default_client
-        for map in self.mapping:
-            if fnmatch.fnmatch(path, map.get("bucket_name")):
-                if map.get("client"):
-                    if map.get("client") == self.client2_name:
-                        client_to_call = self.client2
-                    elif map.get("client") == self.client1_name:
-                        client_to_call = self.client1
-                    else:
-                        raise ValueError("Invalid client name " + map.get("client"))
-                else:
-                    raise ValueError("client isn't provided")
+            if fnmatch.fnmatch(api_params["Bucket"], mapping.get("source_bucket_pattern")):
+                if api_params["Key"]:
+                    if mapping.get("source_key_pattern"):
+                        if not fnmatch.fnmatch(api_params["Key"], mapping.get("source_key_pattern")):
+                            continue
+                    if mapping.get("mapped_prefix"):
+                        api_params["Key"] = mapping.get("mapped_prefix") + api_params["Key"]
+                if mapping.get("mapped_bucket_name"):
+                    api_params["Bucket"] = mapping.get("mapped_bucket_name")
 
-                if not is_copy:
-                    if map.get("mapped_bucket_name"):
-                        api_params["Bucket"] = map.get("mapped_bucket_name")
-                    if map.get("key_prefix"):
-                        api_params["Key"] = map.get("key_prefix") + api_params["Key"]
-                else:
-                    source_path = api_params["CopySource"].split("/")
-                    source_bucket = source_path[0]
-                    source_key = "/".join(source_path[1::])
-                    if map.get("mapped_bucket_name"):
-                        source_bucket = map.get("mapped_bucket_name")
-                    if map.get("key_prefix"):
-                        source_key = map.get("key_prefix") + api_params["Key"]
-                    api_params["CopySource"] = source_bucket + "/" + source_key
-                break
-        return client_to_call, api_params
+                return self.mapping.get(profile), api_params
+        return self.default, api_params
