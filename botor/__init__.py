@@ -1,4 +1,4 @@
-from botwo.botwo import BotorBuilder
+from botor.botor import BotorBuilder
 
 
 def client(client_mapping, profiles):

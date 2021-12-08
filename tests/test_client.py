@@ -1,7 +1,7 @@
 import unittest
 import boto3
 import docker
-import botwo
+import botor
 import pytest
 
 
@@ -42,7 +42,7 @@ def create_botwo_client(minio1, minio2):
                       "test_delete_objects": minio2, "test_paginator": minio2, "test_list_objects": minio2,
                       "default": minio2}
 
-    return botwo.client(client_mapping, profiles)
+    return botor.client(client_mapping, profiles)
 
 
 class Test(unittest.TestCase):
@@ -167,12 +167,16 @@ class Test(unittest.TestCase):
 
         self.botwo_client.put_object(Bucket="test-list-objects", Key="dev/test/1.txt", Body=content)  # route to minio2
         self.botwo_client.put_object(Bucket="test-list-objects", Key="dev/test/2.txt", Body=content)
+        self.botwo_client.put_object(Bucket="test-list-objects", Key="dev/1.txt", Body=content)
         self.botwo_client.put_object(Bucket="test-list-objects", Key="1.txt", Body=content)
         self.botwo_client.put_object(Bucket="test-list-objects", Key="test/3.txt", Body=content)
 
         objects = self.botwo_client.list_objects(Bucket="list", Prefix="test")
 
         self.assertEqual(len(objects['Contents']), 2)
+        # test empty prefix
+        objects = self.botwo_client.list_objects(Bucket="list", Prefix="")
+        self.assertEqual(len(objects['Contents']), 3)
 
     def test_meta(self):
         self.assertEqual(self.botwo_client.meta, self.minio2.meta)

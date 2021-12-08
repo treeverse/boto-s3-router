@@ -8,30 +8,28 @@ LIST_METHODS = {"list_objects", "list_objects_v2", "list_object_version"}
 def _route_bucket_and_key(api_params, config, map):
     for profile in config:
         mapping = config[profile]
+        if "Bucket" in api_params:
+            if fnmatch.fnmatch(api_params["Bucket"], mapping.get("source_bucket_pattern")):
+                if "Key" in api_params:
+                    if "source_key_pattern" in mapping:
+                        if not fnmatch.fnmatch(api_params["Key"], mapping.get("source_key_pattern")):
+                            continue
+                    if "mapped_prefix" in mapping:
+                        api_params["Key"] = mapping.get("mapped_prefix") + api_params["Key"]
+                if "mapped_bucket_name" in mapping:
+                    api_params["Bucket"] = mapping.get("mapped_bucket_name")
 
-        if fnmatch.fnmatch(api_params["Bucket"], mapping.get("source_bucket_pattern")):
-            if "Key" in api_params:
-                if "source_key_pattern" in mapping:
-                    if not fnmatch.fnmatch(api_params["Key"], mapping.get("source_key_pattern")):
-                        continue
-                if "mapped_prefix" in mapping:
-                    api_params["Key"] = mapping.get("mapped_prefix") + api_params["Key"]
-            if "mapped_bucket_name" in mapping:
-                api_params["Bucket"] = mapping.get("mapped_bucket_name")
-
-            return map.get(profile), api_params
+                return map.get(profile), api_params
     return map.get("default"), api_params
 
 
 def _route_list_params(kwargs, config, map):
-    client_to_call = map.get("default")
-    if "Bucket" in kwargs and "Prefix" not in kwargs:
-        client_to_call, result_args = _route_bucket_and_key(api_params=kwargs, config=config, map=map)
-    elif "Bucket" in kwargs and "Prefix" in kwargs:
+    if "Prefix" in kwargs:
         client_to_call, result_args = _route_bucket_and_key(
-            api_params={"Bucket": kwargs.get("Bucket"), "Key": kwargs.get("Prefix")},
-            config=config, map=map)
+            api_params={"Bucket": kwargs.get("Bucket"), "Key": kwargs.get("Prefix")}, config=config, map=map)
         kwargs["Prefix"] = result_args["Key"]
+    else:
+        client_to_call, result_args = _route_bucket_and_key(api_params=kwargs, config=config, map=map)
     kwargs["Bucket"] = result_args["Bucket"]
     return client_to_call, kwargs
 
@@ -68,7 +66,7 @@ class PaginatorWrapper(object):
 
 
 class BotorBuilder(object):
-    """This class creates a botwo client that wraps boto clients.
+    """This class creates a botor client that wraps boto clients.
 
     * Holds boto clients and routes the requests between them by bucket/prefix configuration.
     * Create its methods on the fly according to boto3 client AWS methods.
@@ -133,8 +131,7 @@ class BotorBuilder(object):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
             client_to_call = self.default
-            if "Bucket" in kwargs:  # bucket operations
-                client_to_call, kwargs = _route_bucket_and_key(api_params=kwargs, config=self.config, map=self.mapping)
+            client_to_call, kwargs = _route_bucket_and_key(api_params=kwargs, config=self.config, map=self.mapping)
 
             return getattr(client_to_call, operation_name)(**kwargs)
 
@@ -164,9 +161,8 @@ class BotorBuilder(object):
                                                                                     config=self.config,
                                                                                     map=self.mapping)
 
-            if "Bucket" in kwargs:
-                res = _route_bucket_and_key(api_params=kwargs, config=self.config, map=self.mapping)
-                client_to_call_dest, api_params = res
+            res = _route_bucket_and_key(api_params=kwargs, config=self.config, map=self.mapping)
+            client_to_call_dest, api_params = res
 
             if client_to_call_source != client_to_call_dest:
                 raise ValueError("client source and client destination are different")
