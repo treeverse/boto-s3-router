@@ -55,22 +55,27 @@ class Test(unittest.TestCase):
                                                    environment={"MINIO_ROOT_USER": "minioadmin",
                                                                 "MINIO_ROOT_PASSWORD": "minioadmin",
                                                                 "MINIO_UPDATE": "off"},
-                                                   ports={"9000": 9000}, detach=True)
+                                                   ports={"9000": None}, detach=True)
 
         cls.docker2 = docker_client.containers.run(image="minio/minio:RELEASE.2021-06-07T21-40-51Z",
                                                    command=["minio", "server", "/data"],
                                                    environment={"MINIO_ROOT_USER": "minioadmin",
                                                                 "MINIO_ROOT_PASSWORD": "minioadmin",
                                                                 "MINIO_UPDATE": "off"},
-                                                   ports={"9000": 7000}, detach=True)
+                                                   ports={"9000": None}, detach=True)
+
+        cls.docker1.reload()
+        cls.docker2.reload()
+        docker1_port = cls.docker1.ports['9000/tcp'][0]['HostPort']
+        docker2_port = cls.docker2.ports['9000/tcp'][0]['HostPort']
 
         cls.minio1 = boto3.client('s3',
-                                  endpoint_url='http://localhost:9000',
+                                  endpoint_url=f'http://localhost:{docker1_port}',
                                   aws_access_key_id='minioadmin',
                                   aws_secret_access_key='minioadmin', )
 
         cls.minio2 = boto3.client('s3',
-                                  endpoint_url='http://localhost:7000',
+                                  endpoint_url=f'http://localhost:{docker2_port}',
                                   aws_access_key_id='minioadmin',
                                   aws_secret_access_key='minioadmin')
 
@@ -184,5 +189,5 @@ class Test(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.docker1.kill()
-        cls.docker2.kill()
+        cls.docker1.stop()
+        cls.docker2.stop()

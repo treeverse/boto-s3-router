@@ -5,54 +5,92 @@ COPY_METHODS = {"copy", "copy_object", "copy_upload_part"}
 LIST_METHODS = {"list_objects", "list_objects_v2", "list_object_version"}
 
 
-class PaginatorWrapper(object):
-    """ This class wraps boto paginator """
+def _route_bucket_and_key(api_params, config, map):
+    for profile in config:
+        mapping = config[profile]
 
-    def __init__(self, mapping, config, kwargs):
+        if fnmatch.fnmatch(api_params["Bucket"], mapping.get("source_bucket_pattern")):
+            if "Key" in api_params:
+                if "source_key_pattern" in mapping:
+                    if not fnmatch.fnmatch(api_params["Key"], mapping.get("source_key_pattern")):
+                        continue
+                if "mapped_prefix" in mapping:
+                    api_params["Key"] = mapping.get("mapped_prefix") + api_params["Key"]
+            if "mapped_bucket_name" in mapping:
+                api_params["Bucket"] = mapping.get("mapped_bucket_name")
+
+            return map.get(profile), api_params
+    return map.get("default"), api_params
+
+
+def _route_list_params(kwargs, config, map):
+    client_to_call = map.get("default")
+    if "Bucket" in kwargs and "Prefix" not in kwargs:
+        client_to_call, result_args = _route_bucket_and_key(api_params=kwargs, config=config, map=map)
+    elif "Bucket" in kwargs and "Prefix" in kwargs:
+        client_to_call, result_args = _route_bucket_and_key(
+            api_params={"Bucket": kwargs.get("Bucket"), "Key": kwargs.get("Prefix")},
+            config=config, map=map)
+        kwargs["Prefix"] = result_args["Key"]
+    kwargs["Bucket"] = result_args["Bucket"]
+    return client_to_call, kwargs
+
+
+class PaginatorWrapper(object):
+    """Wrapper for a boto paginator.
+
+    Holds multiple paginators, one for each client, and dispatches calls to the appropriate
+    paginator according to Botor's mapping configuration
+    """
+
+    def __init__(self, mapping, config, operation_name):
+        """Init PaginatorWrapper.
+
+        Initialize paginator for each client.
+
+         :param dict mapping: The mapping between the profiles to the s3 clients
+         :param dict[dict] config: The configuration rules for the clients routing
+         :param str operation_name: The operation name of the paginator
+        """
         self.mapping = mapping
         self.config = config
         self.paginators = dict()
         for client in self.mapping:
-            self.paginators[client] = self.mapping[client].get_paginator(kwargs["operation_name"])
-        self.default = self.paginators.get("default")
+            self.paginators[client] = self.mapping[client].get_paginator(operation_name)
 
     def paginate(self, **kwargs):
-        for profile in self.config:
-            mapping = self.config[profile]
+        """iterate over the pages of the paginator API operation results.
 
-            if fnmatch.fnmatch(kwargs["Bucket"], mapping.get("source_bucket_pattern")):
-                if kwargs["Prefix"]:
-                    if mapping.get("source_key_pattern"):
-                        if not fnmatch.fnmatch(kwargs["Prefix"], mapping.get("source_key_pattern")):
-                            continue
-                    if mapping.get("mapped_prefix"):
-                        kwargs["Prefix"] = mapping.get("mapped_prefix") + kwargs["Prefix"]
-                if mapping.get("mapped_bucket_name"):
-                    kwargs["Bucket"] = mapping.get("mapped_bucket_name")
-
-                return getattr(self.paginators.get(profile), "paginate")(**kwargs)
-        return getattr(self.default, "paginate")(**kwargs)
+        accepts a PaginationConfig named argument that can be used to customize the pagination.
+        """
+        paginator_to_call, kwargs = _route_list_params(kwargs, self.config, self.paginators)
+        return getattr(paginator_to_call, "paginate")(**kwargs)
 
 
-class BotwoBuilder(object):
-    """ This class creates botwo client that wraps boto client:
+class BotorBuilder(object):
+    """This class creates a botwo client that wraps boto clients.
 
-        * Holds boto clients and routes the requests between them by bucket/prefix configuration.
-        * Create its methods on the fly according to boto3 client AWS methods.
-        * Holds special treatment for functions that operate on multiple buckets or keys
-
+    * Holds boto clients and routes the requests between them by bucket/prefix configuration.
+    * Create its methods on the fly according to boto3 client AWS methods.
+    * Holds special treatment for functions that operate on multiple buckets or keys
     """
 
     def __init__(self):
+        """Init BotorBuilder."""
         self.default = None
         self.mapping = None
         self.config = None
 
     def build(self, mapping, config):
+        """build BotorBuilder client.
+
+        initialize default client.
+        create boto client methods.
+        """
         if not isinstance(mapping, dict):
             raise TypeError("Invalid client mapping type: " + str(type(mapping)) + " expected dict")
 
-        if not mapping.get("default"):
+        if "default" not in mapping:
             raise ValueError("default client is required")
         self.mapping = mapping
         self.config = config
@@ -64,7 +102,7 @@ class BotwoBuilder(object):
 
         for profile in self.config:
             if not self.mapping.get(profile):
-                raise ValueError("profile: " + profile + " mapping is required")
+                raise ValueError("profile " + profile + " in config does not appear in mapping")
 
         class_attributes = self._create_methods()
         cls = type("s3", (), class_attributes)
@@ -95,10 +133,8 @@ class BotwoBuilder(object):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
             client_to_call = self.default
-            if kwargs.get("Bucket"):  # bucket operation
-                res = self._route_params(kwargs)
-                client_to_call = res[0]
-                kwargs = res[1]
+            if "Bucket" in kwargs:  # bucket operations
+                client_to_call, kwargs = _route_bucket_and_key(api_params=kwargs, config=self.config, map=self.mapping)
 
             return getattr(client_to_call, operation_name)(**kwargs)
 
@@ -109,16 +145,7 @@ class BotwoBuilder(object):
         def _api_call(_, *args, **kwargs):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
-            client_to_call = self.default
-            if kwargs.get("Bucket") and not kwargs.get("Prefix"):
-                res = self._route_params(kwargs)
-                client_to_call = res[0]
-            elif kwargs.get("Bucket") and kwargs.get("Prefix"):
-                res = self._route_params({"Bucket": kwargs.get("Bucket"), "Key": kwargs.get("Prefix")})
-                client_to_call = res[0]
-                kwargs["Prefix"] = res[1]["Key"]
-            kwargs["Bucket"] = res[1]["Bucket"]
-
+            client_to_call, kwargs = _route_list_params(kwargs, self.config, self.mapping)
             return getattr(client_to_call, operation_name)(**kwargs)
 
         _api_call.__name__ = str(operation_name)
@@ -130,17 +157,16 @@ class BotwoBuilder(object):
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
             client_to_call_source = self.default
             client_to_call_dest = self.default
-            if kwargs.get("CopySource"):  # copy operation
+            if "CopySource" in kwargs:  # copy operation
                 if isinstance(kwargs["CopySource"], str):
                     raise TypeError("accepts only type dict as CopySource")
-                res = self._route_params(kwargs["CopySource"])
-                client_to_call_source = res[0]
-                kwargs["CopySource"] = res[1]
+                client_to_call_source, kwargs["CopySource"] = _route_bucket_and_key(api_params=kwargs["CopySource"],
+                                                                                    config=self.config,
+                                                                                    map=self.mapping)
 
-            if kwargs.get("Bucket"):
-                res = self._route_params(kwargs)
-                client_to_call_dest = res[0]
-                api_params = res[1]
+            if "Bucket" in kwargs:
+                res = _route_bucket_and_key(api_params=kwargs, config=self.config, map=self.mapping)
+                client_to_call_dest, api_params = res
 
             if client_to_call_source != client_to_call_dest:
                 raise ValueError("client source and client destination are different")
@@ -152,7 +178,7 @@ class BotwoBuilder(object):
 
     def _create_get_paginate_method(self, operation_name):
         def _paginator_api_call(*args, **kwargs):
-            return PaginatorWrapper(self.mapping, self.config, kwargs)
+            return PaginatorWrapper(self.mapping, self.config, kwargs['operation_name'])
 
         _paginator_api_call.__name__ = str(operation_name)
         return _paginator_api_call
@@ -168,33 +194,22 @@ class BotwoBuilder(object):
         def _delete_objects_api_call(_, *args, **kwargs):
             if args:
                 raise TypeError("%s() only accepts keyword arguments." % operation_name)
-            if kwargs.get("Delete"):  # delete objects operation
+            if "Delete" in kwargs:  # delete objects operation
                 for i, obj in enumerate(kwargs["Delete"]["Objects"]):
-                    params = {"Bucket": kwargs.get("Bucket"), "Key": obj["Key"]}
-                    res = self._route_params(params)
-                    client_to_call = res[0]
-                    bucket = res[1]["Bucket"]
-                    kwargs["Delete"]["Objects"][i]["Key"] = res[1]["Key"]
-                    # TODO (eden) fail if client to call not equal to previous
-            kwargs["Bucket"] = bucket
-            return getattr(client_to_call, operation_name)(**kwargs)
+                    client_to_call, result_agrs = _route_bucket_and_key(
+                        api_params={"Bucket": kwargs.get("Bucket"), "Key": obj["Key"]},
+                        config=self.config, map=self.mapping)
+                    bucket = result_agrs["Bucket"]
+                    kwargs["Delete"]["Objects"][i]["Key"] = result_agrs["Key"]
+                    if i == 0:
+                        prev_client = client_to_call
+                    else:
+                        if prev_client != client_to_call:
+                            raise ValueError("can't delete objects that mapped to different clients")
+                        prev_client = client_to_call
+
+                kwargs["Bucket"] = bucket
+                return getattr(client_to_call, operation_name)(**kwargs)
 
         _delete_objects_api_call.__name__ = str(operation_name)
         return _delete_objects_api_call
-
-    def _route_params(self, api_params):
-        for profile in self.config:
-            mapping = self.config[profile]
-
-            if fnmatch.fnmatch(api_params["Bucket"], mapping.get("source_bucket_pattern")):
-                if api_params["Key"]:
-                    if mapping.get("source_key_pattern"):
-                        if not fnmatch.fnmatch(api_params["Key"], mapping.get("source_key_pattern")):
-                            continue
-                    if mapping.get("mapped_prefix"):
-                        api_params["Key"] = mapping.get("mapped_prefix") + api_params["Key"]
-                if mapping.get("mapped_bucket_name"):
-                    api_params["Bucket"] = mapping.get("mapped_bucket_name")
-
-                return self.mapping.get(profile), api_params
-        return self.default, api_params
