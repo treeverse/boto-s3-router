@@ -9,15 +9,15 @@ def _route_bucket_and_key(api_params, config, map):
     for profile in config:
         mapping = config[profile]
         if "Bucket" in api_params:
-            if fnmatch.fnmatch(api_params["Bucket"], mapping.get("source_bucket_pattern")):
+            if fnmatch.fnmatch(api_params["Bucket"], mapping["source_bucket_pattern"]):
                 if "Key" in api_params:
                     if "source_key_pattern" in mapping:
-                        if not fnmatch.fnmatch(api_params["Key"], mapping.get("source_key_pattern")):
+                        if not fnmatch.fnmatch(api_params["Key"], mapping["source_key_pattern"]):
                             continue
                     if "mapped_prefix" in mapping:
-                        api_params["Key"] = mapping.get("mapped_prefix") + api_params["Key"]
+                        api_params["Key"] = mapping["mapped_prefix"] + api_params["Key"]
                 if "mapped_bucket_name" in mapping:
-                    api_params["Bucket"] = mapping.get("mapped_bucket_name")
+                    api_params["Bucket"] = mapping["mapped_bucket_name"]
 
                 return map.get(profile), api_params
     return map.get("default"), api_params
@@ -38,7 +38,7 @@ class PaginatorWrapper(object):
     """Wrapper for a boto paginator.
 
     Holds multiple paginators, one for each client, and dispatches calls to the appropriate
-    paginator according to Botor's mapping configuration
+    paginator according to botos3router's mapping configuration
     """
 
     def __init__(self, mapping, config, operation_name):
@@ -65,8 +65,8 @@ class PaginatorWrapper(object):
         return getattr(paginator_to_call, "paginate")(**kwargs)
 
 
-class BotorBuilder(object):
-    """This class creates a botor client that wraps boto clients.
+class BotoS3RouterBuilder(object):
+    """This class creates a botos3router client that wraps boto clients.
 
     * Holds boto clients and routes the requests between them by bucket/prefix configuration.
     * Create its methods on the fly according to boto3 client AWS methods.
@@ -74,13 +74,13 @@ class BotorBuilder(object):
     """
 
     def __init__(self):
-        """Init BotorBuilder."""
+        """Init BotoS3RouterBuilder."""
         self.default = None
         self.mapping = None
         self.config = None
 
     def build(self, mapping, config):
-        """build BotorBuilder client.
+        """build BotoS3RouterBuilder client.
 
         initialize default client.
         create boto client methods.
@@ -101,6 +101,8 @@ class BotorBuilder(object):
         for profile in self.config:
             if not self.mapping.get(profile):
                 raise ValueError("profile " + profile + " in config does not appear in mapping")
+            if "source_bucket_pattern" not in self.config[profile]:
+                raise ValueError("profile " + profile + " source_bucket_pattern is required")
 
         class_attributes = self._create_methods()
         cls = type("s3", (), class_attributes)
