@@ -100,7 +100,7 @@ profiles = {
     }
 }
 
-s3 = s3r.client({"lakefs": lakefs, "lakefs-test": lakefs, "default": s3}, profiles)\
+s3 = s3r.client({"lakefs": lakefs, "default": s3}, profiles)
 
 # All code accessing S3 stays the same as before:
 s3.get_object(Bucket="bucket-a", Key="test/object.txt") # routes to example-repo (dev branch) in lakeFS
