@@ -19,11 +19,12 @@ Boto S3 Router allows you to do that without making any changes to the `calculat
 
 ## Installation
 
+### Prerequisites
+
 Boto S3 Router requires Python >= 3.6 to run.
 
-### pip install
 
-If the python package is hosted on a repository, you can install directly using:
+### Using pip 
 
 ```sh
 pip install git+https://github.com/treeverse/botos3router.git
@@ -50,12 +51,12 @@ s3_west = boto3.client('s3', region_name='us-west-1')
 # Define rules for routing between the clients:
 profiles = {
     "s3_west": {
-        "source_bucket_pattern": "bucket",
+        "source_bucket_pattern": "example-bucket",
         "mapped_bucket_name": "new-bucket",
         "mapped_prefix": "test/"
     },
     "s3_east": {
-        "source_bucket_pattern": "bucket*",
+        "source_bucket_pattern": "example-bucket-prefix*",
         "source_key_pattern": "a/*",
         "mapped_prefix": "test/"
     }
@@ -119,7 +120,11 @@ As can be seen in the examples above, Boto S3 Router is initialized using two co
    
    For example:
    ```json
-   {"profile1": s3, "profile2": minio, "default": s3}
+   {
+     "profile1": s3, 
+     "profile2": minio,
+     "default": s3
+   }
    ```
    
 * profiles -  A mapping between profile name to profile:
