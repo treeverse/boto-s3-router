@@ -110,8 +110,14 @@ s3.get_object(Bucket="example-old-bucket", Key="test/object.txt") # routes to ex
 
 ## Configuration
 
-As
-* client_mapping(dict) - The mapping between the profiles to the S3 clients. default client is required. For example, ```{"profile1": s3, "profile2": minio, "default": s3}```
+```
+s3 = s3r.client(client_mapping, profiles)
+```
+
+As can be seen in the examples above, Boto S3 Router is initialized using two configuration parameters:
+
+* client_mapping(dict) - The mapping between the profiles to the S3 clients. A default client is required.
+   For example, ```{"profile1": s3, "profile2": minio, "default": s3}```
 * profiles(dict of dicts) -  The rules for the client routing. For example:
 ```python 
 profiles = {
