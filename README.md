@@ -1,15 +1,10 @@
-# Botos3router
+# Boto S3 Router
 
-The botos3router package provides a boto3 like client that holds multiple underlying boto3 clients and routes the requests between the client by the bucket/prefix configuration
-
-## Features
-
-- Holds multiple boto s3 clients and dispatches calls to the appropriate client according to configuration
-- Maps 1:1 with boto client API.
+Use this package to interact with S3 side-by-side with S3-compatible services without making any changes to your code. to This package provides a boto3-like client that routes requests between S3 clients according to the name of the bucket and the a user-defined bucket/prefix configuration. 
 
 ## Installation
 
-botos3router requires Python >= 3.6 to run.
+Boto S3 Router requires Python >= 3.6 to run.
 
 ### pip install
 
@@ -22,7 +17,7 @@ pip install git+https://github.com/treeverse/botos3router.git
 
 Then import the package:
 ```python
-import botos3router
+import botos3router as s3r
 ```
 
 ### Setuptools
@@ -36,11 +31,11 @@ python setup.py install --user
 
 Then import the package:
 ```python
-import botos3router
+import botos3router as s3r
 ```
 
 ## Configuration
-* client_mapping(dict) - The mapping between the profiles to the s3 clients. default client is required. For example, ```{"profile1": s3, "profile2": minio, "default": s3}```
+* client_mapping(dict) - The mapping between the profiles to the S3 clients. default client is required. For example, ```{"profile1": s3, "profile2": minio, "default": s3}```
 * profiles(dict of dicts) -  The rules for the client routing. For example:
 ```python 
 profiles = {
@@ -65,9 +60,9 @@ profiles = {
 
 ```python
 import boto3
-import botos3router
+import botos3router as s3r
 
-# Initialize two boto s3 clients according to boto API
+# Initialize two boto S3 clients according to boto API
 s3_east = boto3.client('s3', region_name='us-east-1', signature_version='v4',)
 s3_west = boto3.client('s3', region_name='us-west-1')
 
@@ -88,17 +83,17 @@ profiles = {
 # Defining the mapping between the profiles to the boto clients
 client_mapping = {"s3_west": s3_west, "s3_east": s3_east, "default":s3_east }
 
-# Initializing botos3router client
+# Initializing the client
 # The client supports all boto client API
-client = botos3router.client(client_mapping, profiles)
+client = s3r.client(client_mapping, profiles)
 
 # Use botwo client as boto client
 client.put_object(Bucket="bucket", Prefix="a/b/obj") # routs to s3_west, the object will be "new-bucket/test/a/b/obj
 ```
-## Using botos3router with [lakeFS]
-When a user with an existing python code that uses boto3 client to access s3 wants to move only part of their buckets/prefixes to lakefs, botos3router allows using lakefs and s3 together with minimum code changes.
+## Usage with [lakeFS]
+When a user uses boto3 client to access S3 wants to move only a subset of their data to lakeFS, Boto S3 Router allows using lakeFS and S3 side-by-side with minimum code changes.
 
-For example: user can route all requests to s3 with ```bucket-a``` to lakeFs with ```example-repo/main/``` in lakeFS (example-repo = repository name).
+For example: a user can route all requests to S3 with ```bucket-a``` to lakeFS with ```example-repo/main/``` in lakeFS (example-repo = repository name).
 
 Before introducing the new client, the user interacts only with S3:
 ```python
@@ -107,10 +102,10 @@ import boto3
 s3 = boto3.client('s3')
 s3.get_object(Bucket="test-bucket", Key="test/object.txt")
 ```
-With the new botos3router client: change in every place in the code where a boto S3 client is initialized.
+With the new client: change in every place in the code where a boto S3 client is initialized.
 ```python
 import boto3
-import botos3router
+import botos3router as s3r
 
 s3 = boto3.client('s3')
 lakefs = boto3.client('s3', endpoint_url='https://lakefs.example.com')
@@ -128,7 +123,7 @@ profiles = {
     },
 }
 
-s3 = botos3router.client({"lakefs": lakefs, "lakefs-test": lakefs, "default": s3}, profiles)
+s3 = s3r.client({"lakefs": lakefs, "lakefs-test": lakefs, "default": s3}, profiles)
 s3.get_object(Bucket="example-old-bucket", Key="test/object.txt") # routes to example-repo in lakeFS
 ```
 
