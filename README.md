@@ -127,7 +127,7 @@ As can be seen in the examples above, Boto S3 Router is initialized using two co
    }
    ```
    
-* profiles -  A mapping between profile name to profile:
+* `profiles` -  A mapping between profile name to profile:
   ```json
   {
       "profile1":
