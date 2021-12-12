@@ -1,0 +1,72 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "http://treeverse.io/boto-s3-router/schema/profile.json",
+    "type": "object",
+    "title": "Boto S3 Router profiles",
+    "description": "A mapping between profile names to profiles",
+    "definitions": {
+        "profile": {
+            "type": "object",
+            "description": "A mapping between a bucket pattern and a key pattern to a new bucket name. Optionally, includes a prefix to prepend to the key name.",
+            "default": {},
+            "required": [
+                "source_bucket_pattern"
+            ],
+            "examples": [
+                {
+                    "source_bucket_pattern": "example-old-bucket",
+                    "source_key_pattern": "example-old-key",
+                    "mapped_bucket_name": "example-repo",
+                    "mapped_prefix": "main/"
+                }
+            ],
+            "properties": {
+                "source_bucket_pattern": {
+                    "$id": "#/properties/source_bucket_pattern",
+                    "type": "string",
+                    "title": "Source bucket pattern",
+                    "description": "Requests to buckets matching this pattern will use this profile",
+                    "default": "",
+                    "examples": [
+                        "old-bucket",
+                        "old-bucket-prefix*"
+                    ]
+                },
+                "source_key_pattern": {
+                    "$id": "#/properties/source_key_pattern",
+                    "type": "string",
+                    "title": "Source key pattern",
+                    "description": "Requests to keys matching this pattern will use this profile.",
+                    "default": "",
+                    "examples": [
+                        "a/b/example-old-key*",
+                        "a/*/example-old-key"
+                    ]
+                },
+                "mapped_bucket_name": {
+                    "$id": "#/properties/mapped_bucket_name",
+                    "type": "string",
+                    "title": "Mapped bucket name",
+                    "description": "The bucket name to use when routing the request to the destination client",
+                    "default": "",
+                    "examples": [
+                        "new-bucket"
+                    ]
+                },
+                "mapped_prefix": {
+                    "$id": "#/properties/mapped_prefix",
+                    "type": "string",
+                    "title": "Mapped prefix",
+                    "description": "An optional string to prepend to the key when routing the request to the destination client.",
+                    "default": "",
+                    "examples": [
+                        "main/",
+                        "example-lakefs-branch/"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": {"$ref": "#/definitions/profile"}
+}
