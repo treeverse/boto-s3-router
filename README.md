@@ -1,6 +1,6 @@
 # Boto S3 Router
 
-Interact with S3-compatible services side-by-side with S3, without making any changes to your code. This package provides a boto3-like client that routes requests between S3 clients according to the bucket and the key in the request.
+Interact with S3-compatible services side-by-side with S3, without making any changes to your code. This package provides a Boto3-like client that routes requests between S3 clients according to the bucket and the key in the request.
 
 ## Why use Boto S3 Router
 
@@ -43,11 +43,11 @@ python setup.py install --user
 import boto3
 import botos3router as s3r
 
-# Initialize two boto S3 clients according to boto API
+# Initialize two boto S3 clients:
 s3_east = boto3.client('s3', region_name='us-east-1', signature_version='v4',)
 s3_west = boto3.client('s3', region_name='us-west-1')
 
-# Defining the rules for the routing between the clients
+# Define rules for routing between the clients:
 profiles = {
     "s3_west": {
         "source_bucket_pattern": "bucket",
@@ -61,29 +61,31 @@ profiles = {
     }
 }
 
-# Defining the mapping between the profiles to the boto clients
+# Define the mapping between the profiles to the Boto clients:
 client_mapping = {"s3_west": s3_west, "s3_east": s3_east, "default":s3_east }
 
-# Initializing the client
-# The client supports all boto client API
+# Initialize the client:
 client = s3r.client(client_mapping, profiles)
 
-# Use botwo client as boto client
+# Use Boto S3 Router as you would use any Boto client:
 client.put_object(Bucket="bucket", Prefix="a/b/obj") # routs to s3_west, the object will be "new-bucket/test/a/b/obj
 ```
+
 ## Usage with [lakeFS]
-When a user uses boto3 client to access S3 wants to move only a subset of their data to lakeFS, Boto S3 Router allows using lakeFS and S3 side-by-side with minimum code changes.
+When you use Boto to access S3 and want to migrate only a subset of your data to lakeFS, Boto S3 Router allows you to use lakeFS and S3 side-by-side with minimum code changes.
 
-For example: a user can route all requests to S3 with ```bucket-a``` to lakeFS with ```example-repo/main/``` in lakeFS (example-repo = repository name).
+Consider the following code, accessing objects in two S3 buckets:
 
-Before introducing the new client, the user interacts only with S3:
 ```python
 import boto3
 
 s3 = boto3.client('s3')
-s3.get_object(Bucket="test-bucket", Key="test/object.txt")
+s3.get_object(Bucket="bucket-a", Key="test/object.txt")
+s3.get_object(Bucket="bucket-b", Key="test/object.txt")
 ```
-With the new client: change in every place in the code where a boto S3 client is initialized.
+
+Now suppose only `bucket-a` was migrated to lakeFS, and that the new repository in lakeFS is called `example-repo`. You can route only requests to this specific bucket to lakeFS, with all other requests still being routed to S3:
+
 ```python
 import boto3
 import botos3router as s3r
@@ -95,16 +97,14 @@ profiles = {
    "lakefs":{
         "source_bucket_pattern": "bucket-a",
         "mapped_prefix": "dev/"
-    },
-    "lakefs-test":{
-        "source_bucket_pattern": "example-old-bucket",
-        "mapped_bucket_name": "example-repo",
-        "mapped_prefix": "test/"
-    },
+    }
 }
 
-s3 = s3r.client({"lakefs": lakefs, "lakefs-test": lakefs, "default": s3}, profiles)
-s3.get_object(Bucket="example-old-bucket", Key="test/object.txt") # routes to example-repo in lakeFS
+s3 = s3r.client({"lakefs": lakefs, "lakefs-test": lakefs, "default": s3}, profiles)\
+
+# All code accessing S3 stays the same as before:
+s3.get_object(Bucket="bucket-a", Key="test/object.txt") # routes to example-repo (dev branch) in lakeFS
+s3.get_object(Bucket="bucket-b", Key="test/object.txt") # routes to AWS S3
 ```
 
 ## Configuration
