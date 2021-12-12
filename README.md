@@ -118,7 +118,7 @@ As can be seen in the examples above, Boto S3 Router is initialized using two co
 
 * `client_mapping`: The mapping between profile names to S3 clients. A `default` client is required.
    
-   For example:
+   For example, if `s3` and `minio` are Boto S3 clients, the `client_mapping` can be:
    ```json
    {
      "profile1": s3, 
