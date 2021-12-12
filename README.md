@@ -1,6 +1,6 @@
 # Boto S3 Router
 
-Use this package to interact with S3 side-by-side with S3-compatible services without making any changes to your code. to This package provides a boto3-like client that routes requests between S3 clients according to the name of the bucket and the a user-defined bucket/prefix configuration. 
+Interact with S3-compatible services side-by-side with S3, without making any changes to your code. This package provides a boto3-like client that routes requests between S3 clients according to the bucket and the key in the request.
 
 ## Installation
 
