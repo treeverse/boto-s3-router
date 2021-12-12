@@ -14,7 +14,7 @@ def calculate(s3_client):
 ```
 
 Suppose you want to migrate only `bucket2` to an S3-compatible storage like lakeFS or MinIO. 
-Normally, you would have to refactor your code to accomodate for two S3 clients instead of just one.
+Normally, you would have to refactor your code to allow using two S3 clients instead of just one.
 Boto S3 Router allows you to do that without making any changes to the `calculate` function!
 
 ## Installation
