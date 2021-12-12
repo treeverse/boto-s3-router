@@ -55,7 +55,7 @@ profiles = {
         "mapped_prefix": "test/"
     },
     "s3_east": {
-        "bucket_name": "bucket*",
+        "source_bucket_pattern": "bucket*",
         "source_key_pattern": "a/*",
         "mapped_prefix": "test/"
     }
@@ -99,8 +99,7 @@ profiles = {
     "lakefs-test":{
         "source_bucket_pattern": "example-old-bucket",
         "mapped_bucket_name": "example-repo",
-        "mapped_prefix": "test/*",
-        "mapped_prefix": "main/"
+        "mapped_prefix": "test/"
     },
 }
 
@@ -116,28 +115,38 @@ s3 = s3r.client(client_mapping, profiles)
 
 As can be seen in the examples above, Boto S3 Router is initialized using two configuration parameters:
 
-* client_mapping(dict) - The mapping between the profiles to the S3 clients. A default client is required.
-   For example, ```{"profile1": s3, "profile2": minio, "default": s3}```
-* profiles(dict of dicts) -  The rules for the client routing. For example:
-```python 
-profiles = {
-               "profile1": {
-                   "source_bucket_pattern": "example-bucket" (required - the bucket name to route from;
-                                                              supports wildcard matching (example-bucket*))
-                   "source_key_pattern": "a/*", (optional - the prefix to route from; route all bucket if not specified
-                                                           ;supports wildcard matching (prefix/a/*))
-                   "mapped_bucket_name": "new-bucket", (optional - the new bucket name to use;
-                                                       bucket name unchanged if not specified)
-                   "mapped_prefix": "test/" (optional - add this to the given key/prefix when routing the request to the
-                   mapped bucket. For example,(put_object(Bucket="example-bucket", "Key"="a/obj.py") --> new-bucket/test/a/obj.py))
-               },
-               "profile2": {
-                    "source_bucket_pattern": "bucket"
-                    "mapped_bucket_name": "bucket-a"
-               }
-           }
-```
-
+* `client_mapping`: The mapping between profile names to S3 clients. A `default` client is required.
+   
+   For example:
+   ```json
+   {"profile1": s3, "profile2": minio, "default": s3}
+   ```
+   
+* profiles -  A mapping between profile name to profile:
+  ```json
+  {
+      "profile1":
+      {
+          "source_bucket_pattern": "example-bucket",
+          "source_key_pattern": "a/*",
+          "mapped_bucket_name": "new-bucket",
+          "mapped_prefix": "test/"
+      },
+      "profile2":
+      {
+          "source_bucket_pattern": "bucket",
+          "mapped_bucket_name": "bucket-a"
+      }
+  }
+  ```
+  A profile can have the following properties:
+  | Property              | Description                                                                                 | Required |
+  |-----------------------|---------------------------------------------------------------------------------------------|----------|
+  | source_bucket_pattern | Requests to buckets matching this pattern will use this profile.                            | Yes      |
+  | source_key_pattern    | Requests to keys matching this pattern will use this profile.                               | No       |
+  | mapped_bucket_name    | The bucket name to use when routing the request to the destination client                   | No       |
+  | mapped_prefix         | An optional string to prepend to the key when routing the request to the destination client | No       |
+  
 
 ## License
 
