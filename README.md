@@ -2,6 +2,21 @@
 
 Interact with S3-compatible services side-by-side with S3, without making any changes to your code. This package provides a boto3-like client that routes requests between S3 clients according to the bucket and the key in the request.
 
+## Why use Boto S3 Router
+
+Consider the following code, downloading an object from one bucket and uploading it to another after some manipulation:
+
+```python
+def calculate(s3_client):
+    obj = s3_client.get_object(Bucket="bucket1", Key="a/b/c/obj")
+    obj2 = do_something_to_obj(obj)
+    s3_client.put_object(Body=obj2, Bucket="bucket2", Key="a/b/c/obj")
+```
+
+Suppose you want to migrate only `bucket2` to an S3-compatible storage like lakeFS or MinIO. 
+Normally, you would have to refactor your code to accomodate for two S3 clients instead of just one.
+Boto S3 Router allows you to do that without making any changes to the `calculate` function!
+
 ## Installation
 
 Boto S3 Router requires Python >= 3.6 to run.
@@ -13,12 +28,6 @@ If the python package is hosted on a repository, you can install directly using:
 ```sh
 pip install git+https://github.com/treeverse/botos3router.git
 ```
-(you may need to run `pip` with root permission: `sudo pip install git+https://github.com/treeverse/botos3router.git`)
-
-Then import the package:
-```python
-import botos3router as s3r
-```
 
 ### Setuptools
 
@@ -26,34 +35,6 @@ Install via [Setuptools](http://pypi.python.org/pypi/setuptools).
 
 ```sh
 python setup.py install --user
-```
-(or `sudo python setup.py install` to install the package for all users)
-
-Then import the package:
-```python
-import botos3router as s3r
-```
-
-## Configuration
-* client_mapping(dict) - The mapping between the profiles to the S3 clients. default client is required. For example, ```{"profile1": s3, "profile2": minio, "default": s3}```
-* profiles(dict of dicts) -  The rules for the client routing. For example:
-```python 
-profiles = {
-               "profile1": {
-                   "source_bucket_pattern": "example-bucket" (required - the bucket name to route from;
-                                                              supports wildcard matching (example-bucket*))
-                   "source_key_pattern": "a/*", (optional - the prefix to route from; route all bucket if not specified
-                                                           ;supports wildcard matching (prefix/a/*))
-                   "mapped_bucket_name": "new-bucket", (optional - the new bucket name to use;
-                                                       bucket name unchanged if not specified)
-                   "mapped_prefix": "test/" (optional - add this to the given key/prefix when routing the request to the
-                   mapped bucket. For example,(put_object(Bucket="example-bucket", "Key"="a/obj.py") --> new-bucket/test/a/obj.py))
-               },
-               "profile2": {
-                    "source_bucket_pattern": "bucket"
-                    "mapped_bucket_name": "bucket-a"
-               }
-           }
 ```
 
 ## Basic Usage
@@ -126,6 +107,31 @@ profiles = {
 s3 = s3r.client({"lakefs": lakefs, "lakefs-test": lakefs, "default": s3}, profiles)
 s3.get_object(Bucket="example-old-bucket", Key="test/object.txt") # routes to example-repo in lakeFS
 ```
+
+## Configuration
+
+As
+* client_mapping(dict) - The mapping between the profiles to the S3 clients. default client is required. For example, ```{"profile1": s3, "profile2": minio, "default": s3}```
+* profiles(dict of dicts) -  The rules for the client routing. For example:
+```python 
+profiles = {
+               "profile1": {
+                   "source_bucket_pattern": "example-bucket" (required - the bucket name to route from;
+                                                              supports wildcard matching (example-bucket*))
+                   "source_key_pattern": "a/*", (optional - the prefix to route from; route all bucket if not specified
+                                                           ;supports wildcard matching (prefix/a/*))
+                   "mapped_bucket_name": "new-bucket", (optional - the new bucket name to use;
+                                                       bucket name unchanged if not specified)
+                   "mapped_prefix": "test/" (optional - add this to the given key/prefix when routing the request to the
+                   mapped bucket. For example,(put_object(Bucket="example-bucket", "Key"="a/obj.py") --> new-bucket/test/a/obj.py))
+               },
+               "profile2": {
+                    "source_bucket_pattern": "bucket"
+                    "mapped_bucket_name": "bucket-a"
+               }
+           }
+```
+
 
 ## License
 
