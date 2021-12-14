@@ -23,7 +23,7 @@ setup(
     description="Provides a Boto3-like client routing requests to multiple S3 clients",
     author="Treeverse",
     author_email="services@treeverse.io",
-    url="https://github.com/treeverse/botos3router",
+    url="https://github.com/treeverse/boto-s3-router",
     keywords=["boto", "boto3", "lakeFS", "minio"],
     python_requires=">=3.6",
     install_requires=REQUIRES,
