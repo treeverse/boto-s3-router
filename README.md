@@ -13,7 +13,7 @@ def calculate(s3_client):
     s3_client.put_object(Body=obj2, Bucket="bucket2", Key="a/b/c/obj")
 ```
 
-Suppose you want to migrate only `bucket2` to an S3-compatible storage like lakeFS or MinIO. 
+Suppose you want to migrate only `bucket2` to an S3-compatible service like lakeFS or MinIO.
 Normally, you would have to refactor your code to allow using two S3 clients instead of just one.
 Boto S3 Router allows you to do that without making any changes to the `calculate` function!
 
@@ -97,6 +97,7 @@ lakefs = boto3.client('s3', endpoint_url='https://lakefs.example.com')
 profiles = {
    "lakefs":{
         "source_bucket_pattern": "bucket-a",
+        "mapped_bucket_name": "example-repo",
         "mapped_prefix": "dev/"
     }
 }
