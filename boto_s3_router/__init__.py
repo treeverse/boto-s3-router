@@ -1,4 +1,4 @@
-from botos3router.botos3router import BotoS3RouterBuilder
+from boto_s3_router.botos3router import BotoS3RouterBuilder
 
 
 def client(client_mapping, profiles):
