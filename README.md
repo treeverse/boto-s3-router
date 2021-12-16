@@ -27,7 +27,7 @@ Boto S3 Router requires Python >= 3.6 to run.
 ### Using pip 
 
 ```sh
-pip install git+https://github.com/treeverse/botos3router.git
+pip install git+https://github.com/treeverse/boto-s3-router.git
 ```
 
 ### Setuptools
@@ -42,7 +42,7 @@ python setup.py install --user
 
 ```python
 import boto3
-import botos3router as s3r
+import boto_s3_router as s3r
 
 # Initialize two boto S3 clients:
 s3_east = boto3.client('s3', region_name='us-east-1', signature_version='v4',)
@@ -89,7 +89,7 @@ Now suppose only `bucket-a` was migrated to lakeFS, and that the new repository 
 
 ```python
 import boto3
-import botos3router as s3r
+import boto_s3_router as s3r
 
 s3 = boto3.client('s3')
 lakefs = boto3.client('s3', endpoint_url='https://lakefs.example.com')
