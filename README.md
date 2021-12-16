@@ -26,7 +26,7 @@ Boto S3 Router requires Python >= 3.6 to run.
 
 ### Using pip 
 
-```sh-
+```sh
 pip install git+https://github.com/treeverse/boto-s3-router.git
 ```
 
