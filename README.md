@@ -156,7 +156,7 @@ As can be seen in the examples above, Boto S3 Router is initialized using two co
 
 ## License
 
-MIT
+Apache-2.0 License
 
 
 [lakeFS]: <https://github.com/treeverse/lakeFS>
