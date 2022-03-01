@@ -8,8 +8,8 @@ on:
       tag:
         description: Tag/version to publish
         required: true
-jobs:
 
+jobs:
   deploy:
     runs-on: ubuntu-20.04
     steps:
@@ -27,7 +27,7 @@ jobs:
         id: version
 
       - name: Python build and make package
-        run: make package-python PACKAGE_VERSION=${{ steps.version.outputs.tag }}
+        run: python setup.py sdist VERSION=${{ steps.version.outputs.tag }}
 
       - name: Python publish package
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -36,7 +36,3 @@ jobs:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages_dir: dist/
           verbose: true
-
-      - name: Build release as latest
-        working-directory: clients/python
-        run: bundle exec jekyll build -d _site -b /
