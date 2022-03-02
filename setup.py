@@ -8,8 +8,7 @@ NAME = "boto-s3-router"
 VERSION = "0.1.0"
 
 this_directory = Path(__file__).parent
-long_description = (this_directory / "README.md").read_text()
-LONG_DESCRIPTION = "README.md".read_text()
+LONG_DESCRIPTION = (this_directory / "README.md").read_text()
 # To install the library, run the following
 #
 # python setup.py install
