@@ -78,7 +78,7 @@ When you use Boto to access S3 and want to migrate only a subset of your data to
 Consider the following code, accessing objects in two S3 buckets:
 
 ```python
-import boto_s3_router
+import boto3
 
 s3 = boto3.client('s3')
 s3.get_object(Bucket="bucket-a", Key="test/object.txt")
