@@ -27,7 +27,7 @@ jobs:
         id: version
 
       - name: Python build and make package
-        run: python setup.py sdist boto_s3_router
+        run: python setup.py sdist
         env:
           VERSION: ${{ steps.version.outputs.tag }}
 
