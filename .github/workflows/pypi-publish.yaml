@@ -27,7 +27,9 @@ jobs:
         id: version
 
       - name: Python build and make package
-        run: python3 setup.py sdist boto_s3_router VERSION=${{ steps.version.outputs.tag }}
+        run: python setup.py sdist boto_s3_router
+        environment:
+          VERSION: ${{ steps.version.outputs.tag }}
 
       - name: Python publish package
         uses: pypa/gh-action-pypi-publish@release/v1

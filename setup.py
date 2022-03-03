@@ -3,9 +3,9 @@
 """
 from setuptools import setup, find_packages
 from pathlib import Path
+import os
 
 NAME = "boto-s3-router"
-VERSION = "0.1.0"
 
 this_directory = Path(__file__).parent
 LONG_DESCRIPTION = (this_directory / "README.md").read_text()
@@ -23,7 +23,7 @@ REQUIRES = [
 
 setup(
     name=NAME,
-    version=VERSION,
+    version=os.getenv('VERSION', '0.0.1'),
     description="Provides a Boto3-like client routing requests to multiple S3 clients",
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
